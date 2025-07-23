@@ -20,4 +20,5 @@ process.on("SIGINT", async () => {
   console.log("MongoDB connection closed due to app termination.");
   process.exit(0);
 });
+
 export default connetDB;

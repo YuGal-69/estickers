@@ -2,85 +2,100 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { registerSchema, loginSchema } from "../validators/authValidation.js";
+import { generateOtp } from "../utils/generateOTP.js";
+import { sendOtpEmail } from "../utils/sendEmail.js";
 
+// ✅ Helper: Generate JWT token
 const generateToken = (user) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not defined in environment variables");
+  }
+
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
     expiresIn: "7d",
   });
 };
 
-// POST /api/auth/signup
+// ✳️ Signup Controller
 export const signup = async (req, res) => {
   try {
     const validated = registerSchema.parse(req.body);
-    const existingUser = await User.findOne({ email: validated.email });
+    const { name, email, password, role, phone } = validated;
 
-    if (existingUser) {
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser && existingUser.isVerified) {
       return res
         .status(409)
         .json({ success: false, message: "Email already in use" });
     }
 
-    const hashedPassword = await bcrypt.hash(validated.password, 10);
-    const newUser = await User.create({
-      ...validated,
-      password: hashedPassword,
-      role: req.body.role || "user",
-    });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const otpCode = generateOtp();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Simulate OTP verification (set to true directly for now)
-    newUser.isVerified = true;
-    await newUser.save();
-
-    const token = generateToken(newUser);
-
-    res.status(201).json({
-      success: true,
-      message: "Signup successful",
-      token,
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
+    await User.updateOne(
+      { email },
+      {
+        $set: {
+          name,
+          email,
+          password: hashedPassword,
+          role: role || "user",
+          phone,
+          isVerified: false,
+          otp: { code: otpCode, expiresAt: otpExpires },
+        },
       },
+      { upsert: true }
+    );
+
+    await sendOtpEmail(email, otpCode);
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent to your email for verification",
     });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    console.error("Signup error:", err);
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
 
-// POST /api/auth/login
-export const login = async (req, res) => {
+// ✳️ OTP Verification Controller
+export const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
   try {
-    const validated = loginSchema.parse(req.body);
-    const user = await User.findOne({ email: validated.email });
-
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide both email and OTP",
+      });
     }
 
-    const isMatch = await bcrypt.compare(validated.password, user.password);
+    const user = await User.findOne({ email });
 
-    if (!isMatch) {
+    if (
+      !user ||
+      !user.otp ||
+      String(user.otp.code) !== String(otp) ||
+      new Date() > user.otp.expiresAt
+    ) {
       return res
-        .status(401)
-        .json({ success: false, message: "Invalid credentials" });
+        .status(400)
+        .json({ success: false, message: "Invalid or expired OTP" });
     }
 
-    if (!user.isVerified) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Account not verified" });
-    }
+    user.isVerified = true;
+    user.otp = {};
+    await user.save();
 
     const token = generateToken(user);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Login successful",
+      message: "OTP verified successfully",
       token,
       user: {
         id: user._id,
@@ -89,7 +104,57 @@ export const login = async (req, res) => {
         role: user.role,
       },
     });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+  } catch (error) {
+    console.error("Verify OTP error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// ✳️ Login Controller (requests OTP)
+export const login = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user || !user.isVerified) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found or not verified. Please sign up first.",
+      });
+    }
+
+    const otpCode = generateOtp();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.otp = {
+      code: otpCode,
+      expiresAt: otpExpires,
+    };
+
+    await user.save();
+
+    await sendOtpEmail(email, otpCode);
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent to your email",
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
