@@ -1,53 +1,65 @@
 // middleware/auth.js
-
 import jwt from "jsonwebtoken";
-import User from "../models/User.js"; 
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// export const verifyToken = async (req, res, next) => {
-//   const token = req.headers.authorization?.split(" ")[1];
-//   if (!token) return res.status(401).json({ message: "No token provided" });
-
-//   try {
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-//     req.user = decoded; // contains user id and role
-//     next();
-//   } catch (err) {
-//     return res.status(403).json({ message: "Invalid or expired token" });
-//   }
-// };
-
-// export const verifyAdmin = async (req, res, next) => {
-//   if (!req.user || req.user.role !== "admin") {
-//     return res.status(403).json({ message: "Admin access only" });
-//   }
-//   next();
-// };
-// verifyToken middleware
-export const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Unauthorized: No token provided" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
+/**
+ * ✅ Authentication Middleware
+ * - Checks if a valid JWT token is provided in the Authorization header
+ * - Decodes token and attaches `req.user`
+ */
+export const authMiddleware = async (req, res, next) => {
   try {
+    const authHeader = req.headers.authorization;
+
+    // 🔍 Check for Bearer token
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.warn("🚫 No token found in Authorization header");
+      return res.status(401).json({ success: false, message: "No token provided" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+      console.warn("🚫 Invalid Bearer format");
+      return res.status(401).json({ success: false, message: "Invalid token format" });
+    }
+
+    // 🔍 Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // contains { id, isAdmin, ... }
+
+    console.log("✅ Token decoded successfully:", decoded);
+
+    // Attach user details to request
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+    };
+
     next();
-  } catch (err) {
-    return res.status(401).json({ message: "Invalid token" });
+  } catch (error) {
+    console.error("❌ Auth error:", error.message);
+    return res.status(401).json({ success: false, message: "Unauthorized: Invalid or expired token" });
   }
 };
 
-// verifyAdmin middleware
-export const verifyAdmin = (req, res, next) => {
-  if (req.user?.isAdmin) {
-    return next();
+/**
+ * ✅ Admin Middleware
+ * - Ensures that only users with `admin` role can access the route
+ */
+export const adminMiddleware = (req, res, next) => {
+  console.log("🔍 Checking admin role for user:", req.user);
+
+  if (!req.user) {
+    console.warn("🚫 No user found on request. Did you forget authMiddleware?");
+    return res.status(401).json({ success: false, message: "Unauthorized" });
   }
-  return res.status(403).json({ message: "Admin access only" });
+
+  if (req.user.role !== "admin") {
+    console.warn(`🚫 Access denied. User role is '${req.user.role}'`);
+    return res.status(403).json({ success: false, message: "Admin access only" });
+  }
+
+  console.log("✅ Admin access granted");
+  next();
 };

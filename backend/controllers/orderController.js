@@ -5,65 +5,55 @@ import Sticker from "../models/Sticker.js";
 // ✅ Place an order (COD)
 export const placeOrder = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const { address, items: requestItems, paymentMethod = "COD" } = req.body;
+    const userId = req.user.id;
+    const { address, paymentMethod, items } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized: User ID missing" });
-    }
-
-    if (!address || address.trim() === "") {
-      return res.status(400).json({ message: "Address is required" });
-    }
-
-    if (!Array.isArray(requestItems) || requestItems.length === 0) {
-      return res.status(400).json({ message: "Items are required" });
-    }
-
-    let total = 0;
-    const items = [];
-
-    for (const item of requestItems) {
-      const sticker = await Sticker.findById(item.sticker);
-
-      if (!sticker) {
-        return res.status(400).json({ message: "Invalid sticker in items" });
-      }
-
-      const quantity = Number(item.quantity);
-
-      if (isNaN(quantity) || quantity <= 0) {
-        return res.status(400).json({ message: "Invalid quantity for sticker" });
-      }
-
-      if (typeof sticker.price !== "number") {
-        return res.status(400).json({ message: "Invalid sticker price" });
-      }
-
-      total += sticker.price * quantity;
-
-      items.push({
-        sticker: sticker._id,
-        quantity: quantity,
+    // 1️⃣ Validate fields
+    if (!address || !paymentMethod || !items || items.length === 0) {
+      return res.status(400).json({
+        message: "Address, payment method, and items are required"
       });
     }
 
-    // Create the order
+    // 2️⃣ Validate stickers & calculate total
+    let total = 0;
+    for (const item of items) {
+      const sticker = await Sticker.findById(item.sticker);
+      if (!sticker) {
+        return res.status(404).json({ message: `Sticker not found: ${item.sticker}` });
+      }
+      if (sticker.stock < item.quantity) {
+        return res.status(400).json({
+          message: `Not enough stock for ${sticker.title}. Available: ${sticker.stock}`
+        });
+      }
+      total += sticker.price * item.quantity;
+    }
+
+    // 3️⃣ Create order
     const order = await Order.create({
       user: userId,
       items,
       total,
       address,
-      paymentMethod,
       status: "pending",
+      paymentMethod
     });
 
+    // 4️⃣ Deduct stock
+    for (const item of items) {
+      await Sticker.findByIdAndUpdate(item.sticker, {
+        $inc: { stock: -item.quantity }
+      });
+    }
+
     return res.status(201).json({ success: true, order });
-  } catch (err) {
-    console.error("Order placement error:", err);
-    return res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error("Place order error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 // ✅ Get orders for the current user
 export const getUserOrders = async (req, res) => {
@@ -92,25 +82,32 @@ export const getAllOrders = async (req, res) => {
 };
 
 
-// ✅ Admin: Update order status
 export const updateOrderStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
+    const { status } = req.body || {}; // ✅ Prevent destructure error
 
-    const validStatuses = ["pending", "confirmed", "shipped", "delivered"];
+    if (!status) {
+      return res.status(400).json({ message: "Status is required" });
+    }
+
+    const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid order status" });
     }
 
-    const order = await Order.findByIdAndUpdate(id, { status }, { new: true });
+    const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    return res.status(200).json({ success: true, order });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
+    order.status = status;
+    await order.save();
+
+    res.status(200).json({ success: true, order });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
+
+
 

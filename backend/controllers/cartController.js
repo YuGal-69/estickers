@@ -61,12 +61,30 @@ export const updateCartQuantity = async (req, res) => {
 };
 
 // Get user's cart
+// Get user's cart
 export const getCart = async (req, res) => {
   try {
     const userId = req.user.id;
-    const cart = await Cart.findOne({ user: userId }).populate("items.sticker");
-    res.status(200).json({ success: true, cart });
+
+    let cart = await Cart.findOne({ user: userId }).populate("items.sticker");
+
+    // If cart doesn't exist, return an empty one instead of null
+    if (!cart) {
+      return res.status(200).json({
+        success: true,
+        cart: { items: [], total: 0 }
+      });
+    }
+
+    // Calculate total price (optional, if not stored in DB)
+    const total = cart.items.reduce((sum, item) => {
+      const price = item.sticker?.price || 0;
+      return sum + price * item.quantity;
+    }, 0);
+
+    res.status(200).json({ success: true, cart: { ...cart.toObject(), total } });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
+

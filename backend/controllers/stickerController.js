@@ -17,6 +17,32 @@ export const getAllStickers = async (req, res) => {
   }
 };
 
+// GET sticker by ID (Public)
+export const getStickerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sticker = await Sticker.findById(id);
+
+    if (!sticker) {
+      return res.status(404).json({
+        success: false,
+        message: "Sticker not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: sticker,
+    });
+  } catch (err) {
+    console.error("Get Sticker by ID Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch sticker details",
+    });
+  }
+};
+
 // ADD new sticker (Admin Only, with image upload)
 // controllers/stickerController.js
 export const addSticker = async (req, res) => {
@@ -24,7 +50,9 @@ export const addSticker = async (req, res) => {
     const { title, description, price } = req.body;
 
     if (!req.file)
-      return res.status(400).json({ success: false, message: "Image required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Image required" });
 
     // req.file.path or req.file.url contains the Cloudinary URL
     // req.file.filename or req.file.public_id contains the Cloudinary public ID
@@ -37,40 +65,47 @@ export const addSticker = async (req, res) => {
       uploadedBy: req.user?.id || null,
     });
 
-    res.status(201).json({ success: true, message: "Sticker added", data: newSticker });
+    res
+      .status(201)
+      .json({ success: true, message: "Sticker added", data: newSticker });
   } catch (error) {
     console.error("Add Sticker Error:", error.message);
     res.status(500).json({ success: false, message: "Failed to add sticker" });
   }
 };
 
-
-// UPDATE sticker (Admin Only, image optional)
+// controllers/stickerController.js
 export const updateSticker = async (req, res) => {
   try {
-    const { id } = req.params;
-    const validated = stickerSchema.partial().parse(req.body); // partial allows optional fields
+    let { title, description, price } = req.body;
 
-    const updated = await Sticker.findByIdAndUpdate(
-      id,
-      {
-        ...validated,
-        ...(req.file && { imageUrl: req.file.path }),
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (!updated) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Sticker not found" });
+    // Convert price to number if it's provided
+    if (price) {
+      price = Number(price);
     }
 
+    const validatedData = stickerSchema.parse({
+      title,
+      description,
+      price,
+    });
+
+    // Update sticker
+    const updatedSticker = await Sticker.findByIdAndUpdate(
+      req.params.id,
+      validatedData,
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      message: "Sticker updated successfully",
+      data: updatedSticker,
+    });
+  } catch (error) {
     res
-      .status(200)
-      .json({ success: true, message: "Sticker updated", data: updated });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+      .status(400)
+      .json({ success: false, message: error.errors || error.message });
   }
 };
 
@@ -88,9 +123,25 @@ export const deleteSticker = async (req, res) => {
 
     // Delete from DB
     await Sticker.findByIdAndDelete(id);
-    res.status(200).json({ success: true, message: "Sticker deleted successfully" });
+    res
+      .status(200)
+      .json({ success: true, message: "Sticker deleted successfully" });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to delete sticker" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to delete sticker" });
   }
 };
 
+const fetchStickers = async () => {
+  setLoading(true);
+  setError("");
+  try {
+    const res = await stickerService.getAllStickers();
+    setStickers(Array.isArray(res) ? res : res?.data || []); // ✅ access .data
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};

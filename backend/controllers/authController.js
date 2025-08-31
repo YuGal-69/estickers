@@ -1,30 +1,35 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import { registerSchema, loginSchema } from "../validators/authValidation.js";
+import { registerSchema } from "../validators/authValidation.js";
 import { generateOtp } from "../utils/generateOTP.js";
 import { sendOtpEmail } from "../utils/sendEmail.js";
 
-// ✅ Helper: Generate JWT token
+// ✅ Centralized admin email list
+const ADMIN_EMAILS = ["yugalhemane2@gmail.com"];
+
+// ✅ JWT helper
 const generateToken = (user) => {
   if (!process.env.JWT_SECRET) {
     throw new Error("JWT_SECRET is not defined in environment variables");
   }
 
-  return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "30d" }
+  );
 };
 
 // ✳️ Signup Controller
 export const signup = async (req, res) => {
   try {
     const validated = registerSchema.parse(req.body);
-    const { name, email, password, role, phone } = validated;
+    const { name, email, password, phone } = validated;
 
-    const existingUser = await User.findOne({ email });
+    let user = await User.findOne({ email });
 
-    if (existingUser && existingUser.isVerified) {
+    if (user && user.isVerified) {
       return res
         .status(409)
         .json({ success: false, message: "Email already in use" });
@@ -32,7 +37,9 @@ export const signup = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const otpCode = generateOtp();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    const role = ADMIN_EMAILS.includes(email) ? "admin" : "user";
 
     await User.updateOne(
       { email },
@@ -41,7 +48,7 @@ export const signup = async (req, res) => {
           name,
           email,
           password: hashedPassword,
-          role: role || "user",
+          role,
           phone,
           isVerified: false,
           otp: { code: otpCode, expiresAt: otpExpires },
@@ -64,9 +71,9 @@ export const signup = async (req, res) => {
 
 // ✳️ OTP Verification Controller
 export const verifyOtp = async (req, res) => {
-  const { email, otp } = req.body;
-
   try {
+    const { email, otp } = req.body;
+
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
@@ -101,7 +108,7 @@ export const verifyOtp = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: user.role, // ✅ Always include role
       },
     });
   } catch (error) {
@@ -113,11 +120,11 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-// ✳️ Login Controller (requests OTP)
+// ✳️ Login Controller
 export const login = async (req, res) => {
-  const { email } = req.body;
-
   try {
+    const { email } = req.body;
+
     if (!email) {
       return res.status(400).json({
         success: false,
@@ -135,7 +142,7 @@ export const login = async (req, res) => {
     }
 
     const otpCode = generateOtp();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     user.otp = {
       code: otpCode,
@@ -158,3 +165,31 @@ export const login = async (req, res) => {
     });
   }
 };
+
+export const resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const otpCode = generateOtp();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    user.otp = { code: otpCode, expiresAt: otpExpires };
+    await user.save();
+
+    await sendOtpEmail(email, otpCode);
+
+    return res.status(200).json({ success: true, message: "OTP resent to your email" });
+  } catch (err) {
+    console.error("Resend OTP error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
