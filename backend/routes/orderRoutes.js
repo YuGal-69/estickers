@@ -9,9 +9,16 @@ import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
 
 const router = express.Router();
 
+// Place order (user)
 router.post("/", authMiddleware, placeOrder);
-router.get("/orders/me", authMiddleware, getUserOrders);
+
+// Get logged-in user's orders
+router.get("/me", authMiddleware, getUserOrders);
+
+// Admin: get all orders
 router.get("/", authMiddleware, adminMiddleware, getAllOrders);
+
+// Admin: update order status
 router.put("/:id/status", authMiddleware, adminMiddleware, updateOrderStatus);
 
 export default router;

@@ -66,7 +66,6 @@ const Checkout = () => {
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
 
-    // Validation
     if (
       !formData.fullName ||
       !formData.email ||
@@ -89,22 +88,37 @@ const Checkout = () => {
       setPlacingOrder(true);
       setError("");
 
+      const { total } = calculateTotals();
+
+      // ✅ Build payload EXACTLY like Postman example
       const orderData = {
-        address: `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`,
-        paymentMethod: formData.paymentMethod,
         items: cart.items.map((item) => ({
           sticker: item.sticker._id,
           quantity: item.quantity,
         })),
+        totalPrice: total,
+        shippingAddress: {
+          street: formData.address,
+          city: formData.city,
+          state: formData.state,
+          postalCode: formData.pincode,
+          country: "India",
+        },
+        paymentMethod: formData.paymentMethod === "cod" ? "COD" : "Online",
       };
+
+      // console.log(
+      //   "📦 Final Order Data (frontend):",
+      //   JSON.stringify(orderData, null, 2)
+      // );
 
       const response = await orderService.placeOrder(orderData);
 
-      if (response.success) {
+      if (response.success || response.order) {
         toast.success("Order placed successfully!");
-        // Clear cart after successful order
-        // Navigate to order confirmation
         navigate(`/order-confirmation/${response.order._id}`);
+      } else {
+        toast.error(response.message || "Order failed");
       }
     } catch (error) {
       setError(error.message || "Failed to place order");

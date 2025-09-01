@@ -2,112 +2,134 @@ import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
 import Sticker from "../models/Sticker.js";
 
-// ✅ Place an order (COD)
+/**
+ * ✅ Place an order (COD / other methods)
+ */
 export const placeOrder = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { address, paymentMethod, items } = req.body;
+    console.log("📦 Order request body:", req.body);
+    console.log("👤 User from auth:", req.user);
 
-    // 1️⃣ Validate fields
-    if (!address || !paymentMethod || !items || items.length === 0) {
-      return res.status(400).json({
-        message: "Address, payment method, and items are required"
-      });
-    }
+    const { items, total, address, paymentMethod = "COD" } = req.body;
 
-    // 2️⃣ Validate stickers & calculate total
-    let total = 0;
-    for (const item of items) {
-      const sticker = await Sticker.findById(item.sticker);
-      if (!sticker) {
-        return res.status(404).json({ message: `Sticker not found: ${item.sticker}` });
-      }
-      if (sticker.stock < item.quantity) {
-        return res.status(400).json({
-          message: `Not enough stock for ${sticker.title}. Available: ${sticker.stock}`
+    // Ensure required fields exist
+    if (!items || !items.length || !total || !address || !paymentMethod) {
+      return res
+        .status(400)
+        .json({
+          message: "Items, address, total, and paymentMethod are required",
         });
-      }
-      total += sticker.price * item.quantity;
     }
 
-    // 3️⃣ Create order
-    const order = await Order.create({
-      user: userId,
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "Unauthorized: User not found" });
+    }
+
+    const newOrder = new Order({
+      user: req.user.id,
       items,
       total,
       address,
+      paymentMethod,
       status: "pending",
-      paymentMethod
     });
 
-    // 4️⃣ Deduct stock
-    for (const item of items) {
-      await Sticker.findByIdAndUpdate(item.sticker, {
-        $inc: { stock: -item.quantity }
-      });
-    }
+    console.log("🛠 New Order object:", newOrder);
 
-    return res.status(201).json({ success: true, order });
+    await newOrder.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Order placed successfully",
+      order: newOrder,
+    });
   } catch (error) {
-    console.error("Place order error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ Order save failed:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
 
-
-// ✅ Get orders for the current user
+/**
+ * ✅ Get orders for the current user
+ */
 export const getUserOrders = async (req, res) => {
   try {
     const userId = req.user?.id;
+    console.log("📥 Fetching orders for user:", userId);
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const orders = await Order.find({ user: userId }).populate("items.sticker");
-    return res.status(200).json({ success: true, orders });
+    const orders = await Order.find({ user: userId })
+      .populate("items.sticker")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, orders });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("❌ GetUserOrders error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-// ✅ Admin: Get all orders
+/**
+ * ✅ Admin: Get all orders
+ */
 export const getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find().populate("items.sticker user");
-    return res.status(200).json({ success: true, orders });
+    console.log("📥 Admin fetching all orders");
+
+    const orders = await Order.find()
+      .populate("items.sticker user")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, orders });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("❌ GetAllOrders error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-
+/**
+ * ✅ Admin: Update order status
+ */
 export const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body || {}; // ✅ Prevent destructure error
+    const { status } = req.body;
+    const orderId = req.params.id;
 
     if (!status) {
       return res.status(400).json({ message: "Status is required" });
     }
 
-    const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+    const validStatuses = [
+      "pending",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid order status" });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: { status } },
+      { new: true, runValidators: false }
+    );
+
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    order.status = status;
-    await order.save();
+    console.log(`✅ Order ${orderId} status updated to ${status}`);
 
     res.status(200).json({ success: true, order });
   } catch (error) {
+    console.error("❌ UpdateOrderStatus error:", error);
     res.status(500).json({ message: error.message });
   }
 };
-
-
-

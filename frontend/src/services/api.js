@@ -1,55 +1,28 @@
 // services/api.js
 import axios from "axios";
 
-// Get token from localStorage
-const getToken = () => {
-  return localStorage.getItem("token");
-};
+// ----------------- Local Storage Helpers -----------------
+const getToken = () => localStorage.getItem("token");
+const setToken = (token) => localStorage.setItem("token", token);
+const removeToken = () => localStorage.removeItem("token");
 
-// Set token in localStorage
-const setToken = (token) => {
-  localStorage.setItem("token", token);
-};
-
-// Remove token from localStorage
-const removeToken = () => {
-  localStorage.removeItem("token");
-};
-
-// Get user from localStorage
 const getUser = () => {
   const user = localStorage.getItem("user");
   return user ? JSON.parse(user) : null;
 };
+const setUser = (user) => localStorage.setItem("user", JSON.stringify(user));
+const removeUser = () => localStorage.removeItem("user");
 
-// Set user in localStorage
-const setUser = (user) => {
-  localStorage.setItem("user", JSON.stringify(user));
-};
-
-// Remove user from localStorage
-const removeUser = () => {
-  localStorage.removeItem("user");
-};
-
-// Check if user is authenticated
-export const isAuthenticated = () => {
-  return !!getToken();
-};
-
-// Get current user
-export const getCurrentUser = () => {
-  return getUser();
-};
-
-// Logout function
+// ----------------- Auth Helpers -----------------
+export const isAuthenticated = () => !!getToken();
+export const getCurrentUser = () => getUser();
 export const logout = () => {
   removeToken();
   removeUser();
   window.location.href = "/";
 };
 
-// Test backend connection
+// ----------------- Backend Connection -----------------
 export const testBackendConnection = async () => {
   const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
   try {
@@ -61,13 +34,11 @@ export const testBackendConnection = async () => {
   }
 };
 
-// API request with authentication
+// ----------------- Core API Request -----------------
 const apiRequest = async (url, options = {}) => {
   const token = getToken();
   const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
   const fullUrl = baseUrl + url;
-
-  // console.log("Making API request to:", fullUrl); // Debug log
 
   const config = {
     ...options,
@@ -80,70 +51,13 @@ const apiRequest = async (url, options = {}) => {
 
   try {
     const res = await fetch(fullUrl, config);
-    // console.log("Response status:", res.status); // Debug log
+    // console.log("Response status:", res.status);
 
     const text = await res.text();
     let json = {};
-
     try {
       json = JSON.parse(text);
-    } catch (err) {
-      // console.log("Failed to parse JSON response:", text); // Debug log
-    }
-
-    if (!res.ok) {
-      // Handle authentication errors
-      if (res.status === 401) {
-        logout();
-        throw new Error("Session expired. Please login again.");
-      }
-      throw new Error(json.message || `HTTP ${res.status}: ${res.statusText}`);
-    }
-
-    return json;
-  } catch (error) {
-    console.error("API request failed:", error); // Debug log
-
-    // Check if it's a connection error
-    if (
-      error.message.includes("Failed to fetch") ||
-      error.message.includes("ERR_CONNECTION_REFUSED")
-    ) {
-      throw new Error(
-        "Backend server is not running. Please start the backend server first."
-      );
-    }
-
-    throw error;
-  }
-};
-
-// File upload API request
-const apiRequestWithFile = async (url, formData) => {
-  const token = getToken();
-  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
-  const fullUrl = baseUrl + url;
-
-  // console.log("Making file upload request to:", fullUrl);
-
-  const config = {
-    method: "POST",
-    headers: {
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
-    body: formData,
-  };
-
-  try {
-    const res = await fetch(fullUrl, config);
-    // console.log("File upload response status:", res.status);
-
-    const text = await res.text();
-    let json = {};
-
-    try {
-      json = JSON.parse(text);
-    } catch (err) {
+    } catch {
       // console.log("Failed to parse JSON response:", text);
     }
 
@@ -157,106 +71,88 @@ const apiRequestWithFile = async (url, formData) => {
 
     return json;
   } catch (error) {
-    console.error("File upload failed:", error);
+    console.error("API request failed:", error);
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("ERR_CONNECTION_REFUSED")
+    ) {
+      throw new Error("Backend server is not running.");
+    }
     throw error;
   }
 };
 
-export const apiPost = async (url, data) => {
-  return await apiRequest(url, {
+// ----------------- File Upload API Request -----------------
+const apiRequestWithFile = async (url, formData) => {
+  const token = getToken();
+  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const fullUrl = baseUrl + url;
+
+  const config = {
     method: "POST",
-    body: JSON.stringify(data),
-  });
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: formData,
+  };
+
+  const res = await fetch(fullUrl, config);
+  const text = await res.text();
+  let json = {};
+  try {
+    json = JSON.parse(text);
+  } catch {}
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      logout();
+      throw new Error("Session expired. Please login again.");
+    }
+    throw new Error(json.message || `HTTP ${res.status}: ${res.statusText}`);
+  }
+
+  return json;
 };
 
-export const apiGet = async (url) => {
-  return await apiRequest(url, {
-    method: "GET",
-  });
-};
+// ----------------- Shortcuts -----------------
+export const apiPost = (url, data) =>
+  apiRequest(url, { method: "POST", body: JSON.stringify(data) });
 
-export const apiPut = async (url, data) => {
-  return apiRequest(url, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-};
+export const apiGet = (url) => apiRequest(url, { method: "GET" });
 
-export const apiDelete = async (url) => {
-  return apiRequest(url, {
-    method: "DELETE",
-  });
-};
+export const apiPut = (url, data) =>
+  apiRequest(url, { method: "PUT", body: JSON.stringify(data) });
 
-// Authentication specific functions
+export const apiDelete = (url) => apiRequest(url, { method: "DELETE" });
+
+// ----------------- Services -----------------
 export const authService = {
-  // Signup
-  signup: async (userData) => {
-    const response = await apiPost("/api/auth/signup", userData);
-    return response;
-  },
-
-  // Login (request OTP)
-  login: async (email) => {
-    const response = await apiPost("/api/auth/login", { email });
-    return response;
-  },
-
-  // Verify OTP
+  signup: (userData) => apiPost("/api/auth/signup", userData),
+  login: (email) => apiPost("/api/auth/login", { email }),
   verifyOtp: async (email, otp) => {
     const response = await apiPost("/api/auth/verify-otp", { email, otp });
-
-    // If verification successful, store token and user data
     if (response.success && response.token) {
       setToken(response.token);
       setUser(response.user);
     }
-
     return response;
   },
-
-  // Logout
-  logout: () => {
-    logout();
-  },
-
-  // Get current user
-  getCurrentUser: () => {
-    return getCurrentUser();
-  },
-
-  // Check if authenticated
-  isAuthenticated: () => {
-    return isAuthenticated();
-  },
+  logout: () => logout(),
+  getCurrentUser: () => getCurrentUser(),
+  isAuthenticated: () => isAuthenticated(),
 };
 
-// Sticker service functions
 export const stickerService = {
-  // Get all stickers (public)
-  getAllStickers: async () => {
-    return await apiGet("/api/stickers");
-  },
-
-  // Get sticker by ID (public)
-  getStickerById: async (stickerId) => {
-    return await apiGet(`/api/stickers/${stickerId}`);
-  },
-
-  // Add new sticker (admin only)
-  addSticker: async (stickerData, imageFile) => {
+  getAllStickers: () => apiGet("/api/stickers"),
+  getStickerById: (stickerId) => apiGet(`/api/stickers/${stickerId}`),
+  addSticker: (stickerData, imageFile) => {
     const formData = new FormData();
     formData.append("title", stickerData.title);
     formData.append("description", stickerData.description || "");
     formData.append("price", stickerData.price);
-    if (imageFile) {
-      formData.append("stickerImage", imageFile);
-    }
-
-    return await apiRequestWithFile("/api/stickers/create", formData);
+    if (imageFile) formData.append("stickerImage", imageFile);
+    return apiRequestWithFile("/api/stickers/create", formData);
   },
-
-  // Delete sticker (admin only)
   deleteSticker: async (stickerId) => {
     const token = getToken();
     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -264,20 +160,15 @@ export const stickerService = {
 
     const res = await fetch(fullUrl, {
       method: "DELETE",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
     });
 
     if (!res.ok) {
       if (res.status === 403) throw new Error("Admin access only");
       throw new Error(`Failed to delete sticker (HTTP ${res.status})`);
     }
-
     return await res.json();
   },
-
-  // Update sticker (admin only)
   updateSticker: async (stickerId, stickerData, imageFile) => {
     const formData = new FormData();
     if (stickerData.title) formData.append("title", stickerData.title);
@@ -292,9 +183,7 @@ export const stickerService = {
 
     const res = await fetch(fullUrl, {
       method: "PUT",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
       body: formData,
     });
 
@@ -302,58 +191,49 @@ export const stickerService = {
       if (res.status === 403) throw new Error("Admin access only");
       throw new Error(`Failed to update sticker (HTTP ${res.status})`);
     }
-
     return await res.json();
   },
 };
 
-// Cart service functions
 export const cartService = {
-  // Add item to cart
-  addToCart: async (stickerId, quantity) => {
-    return await apiPost("/api/cart/add", { stickerId, quantity });
-  },
-
-  // Remove item from cart
-  removeFromCart: async (stickerId) => {
-    return await apiPost("/api/cart/remove", { stickerId });
-  },
-
-  // Update cart quantity
-  updateCartQuantity: async (stickerId, quantity) => {
-    return await apiPost("/api/cart/update", { stickerId, quantity });
-  },
-
-  // Get user's cart
-  getCart: async () => {
-    return await apiGet("/api/cart");
-  },
+  addToCart: (stickerId, quantity) =>
+    apiPost("/api/cart/add", { stickerId, quantity }),
+  removeFromCart: (stickerId) => apiPost("/api/cart/remove", { stickerId }),
+  updateCartQuantity: (stickerId, quantity) =>
+    apiPost("/api/cart/update", { stickerId, quantity }),
+  getCart: () => apiGet("/api/cart"),
 };
 
-// Order service functions
 export const orderService = {
-  // Place order
-  placeOrder: async (orderData) => {
-    return await apiPost("/api/orders", orderData);
+  placeOrder: (orderData) => {
+    // Map frontend keys → backend schema
+    const mappedData = {
+      items: orderData.items.map((item) => ({
+        sticker: item.sticker,
+        quantity: item.quantity,
+      })),
+      total: orderData.totalPrice,        // ✅ backend expects "total"
+      address: {
+        street: orderData.shippingAddress.street,
+        city: orderData.shippingAddress.city,
+        state: orderData.shippingAddress.state,
+        postalCode: orderData.shippingAddress.postalCode,
+        country: orderData.shippingAddress.country,
+      },
+      paymentMethod: orderData.paymentMethod || "COD",
+    };
+
+    return apiPost("/api/orders", mappedData);
   },
 
-  // Get user's orders
-  getUserOrders: async () => {
-    return await apiGet("/api/orders/orders/me");
-  },
-
-  // Get all orders (admin only)
-  getAllOrders: async () => {
-    return await apiGet("/api/orders");
-  },
-
-  // Update order status (admin only)
-  updateOrderStatus: async (orderId, status) => {
-    return await apiPut(`/api/orders/${orderId}/status`, { status });
-  },
+  getUserOrders: () => apiGet("/api/orders/me"), // ✅ matches backend
+  getAllOrders: () => apiGet("/api/orders"),     // ✅ admin only
+  updateOrderStatus: (orderId, status) =>
+    apiPut(`/api/orders/${orderId}/status`, { status }),
 };
 
-// Export all services
+
+
 export default {
   auth: authService,
   stickers: stickerService,

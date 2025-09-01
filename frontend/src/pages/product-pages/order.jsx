@@ -256,8 +256,13 @@ const Order = () => {
                 <h4 className="text-white font-semibold mb-3">
                   Delivery Address
                 </h4>
-                <div className="p-4 bg-white/5 rounded-lg">
-                  <p className="text-gray-300">{order.address}</p>
+                <div className="p-4 bg-white/5 rounded-lg text-gray-300 space-y-1">
+                  <p>{order.address?.street}</p>
+                  <p>
+                    {order.address?.city}, {order.address?.state}{" "}
+                    {order.address?.postalCode}
+                  </p>
+                  <p>{order.address?.country}</p>
                 </div>
               </div>
 

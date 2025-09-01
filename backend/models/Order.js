@@ -11,10 +11,16 @@ const orderSchema = new mongoose.Schema(
       }
     ],
     total: { type: Number, required: true },
-    address: { type: String, required: true },
+    address: {
+      street: { type: String, required: true },
+      city: { type: String, required: true },
+      state: { type: String, required: true },
+      postalCode: { type: String, required: true },
+      country: { type: String, required: true }
+    },
     status: {
       type: String,
-      enum: ["pending", "processing", "shipped", "delivered", "cancelled"], // ✅ added cancelled
+      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
       default: "pending"
     },
     paymentMethod: { type: String, enum: ["COD", "Online"], default: "COD" }
