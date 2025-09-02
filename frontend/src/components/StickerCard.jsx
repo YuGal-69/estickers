@@ -71,14 +71,7 @@ const StickerCard = ({ sticker, onAddToCart }) => {
         Add to Cart
       </button>
 
-      {/* Mobile-friendly always-visible button for small screens */}
-      <button
-        className="mt-2 px-3 sm:px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-bold shadow hover:scale-105 hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-xs sm:text-sm w-full sm:hidden"
-        onClick={handleAddToCart}
-        aria-label={`Add ${sticker.title} to cart`}
-      >
-        Add to Cart
-      </button>
+      
     </div>
   );
 };
