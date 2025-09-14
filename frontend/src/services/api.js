@@ -143,7 +143,14 @@ export const authService = {
 };
 
 export const stickerService = {
-  getAllStickers: () => apiGet("/api/stickers"),
+  getAllStickers: (category) => {
+  const url =
+    category && category !== "All"
+      ? `/api/stickers?category=${encodeURIComponent(category)}`
+      : "/api/stickers";
+  return apiGet(url);
+},
+
   getStickerById: (stickerId) => apiGet(`/api/stickers/${stickerId}`),
   addSticker: (stickerData, imageFile) => {
     const formData = new FormData();

@@ -6,8 +6,13 @@ const stickerSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     imageUrl: { type: String, required: true },
-    publicId: { type: String, required: true }, // fixed name
-    price: { type: Number, required: true }, // added
+    publicId: { type: String, required: true }, // Cloudinary public ID
+    price: { type: Number, required: true },
+    category: {
+      type: String,
+      enum: ["Trending", "New", "Animals", "Food", "Cute", "Funny"],
+      required: true,
+    },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

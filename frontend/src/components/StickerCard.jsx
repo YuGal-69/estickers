@@ -49,7 +49,7 @@ const StickerCard = ({ sticker, onAddToCart }) => {
       <img
         src={sticker.imageUrl}
         alt={sticker.title}
-        className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 lg:w-36 lg:h-36 object-contain rounded-lg mb-2 sm:mb-3 bg-white/10 drop-shadow-md transition-transform duration-300 group-hover:scale-110"
+        className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 lg:w-36 lg:h-36 object-fill rounded-lg mb-2 sm:mb-3 bg-white/10 drop-shadow-md transition-transform duration-300 group-hover:scale-110"
       />
       <h3
         className="text-sm sm:text-base lg:text-lg font-bold text-white mb-1 text-center truncate w-full px-1"

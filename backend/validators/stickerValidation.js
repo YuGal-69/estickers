@@ -7,4 +7,5 @@ export const stickerSchema = z.object({
     required_error: "Price is required",
     invalid_type_error: "Price must be a number",
   }).positive("Price must be a positive number"),
+  category: z.string().optional(),
 });

@@ -6,16 +6,24 @@ import streamifier from "streamifier";
 // GET all stickers (Public)
 export const getAllStickers = async (req, res) => {
   try {
-    const stickers = await Sticker.find();
-    res
-      .status(200)
-      .json({ success: true, count: stickers.length, data: stickers });
+    const { category } = req.query;   // 👈 get category from query params
+    const filter = category ? { category } : {};
+
+    const stickers = await Sticker.find(filter);
+
+    res.status(200).json({
+      success: true,
+      count: stickers.length,
+      data: stickers,
+    });
   } catch (err) {
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch stickers" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch stickers",
+    });
   }
 };
+
 
 // GET sticker by ID (Public)
 export const getStickerById = async (req, res) => {
@@ -47,39 +55,35 @@ export const getStickerById = async (req, res) => {
 // controllers/stickerController.js
 export const addSticker = async (req, res) => {
   try {
-    const { title, description, price } = req.body;
+    const { title, description, price, category } = req.body;
 
-    if (!req.file)
-      return res
-        .status(400)
-        .json({ success: false, message: "Image required" });
+    if (!req.file?.path) {
+      return res.status(400).json({ error: "Image is required" });
+    }
 
-    // req.file.path or req.file.url contains the Cloudinary URL
-    // req.file.filename or req.file.public_id contains the Cloudinary public ID
-    const newSticker = await Sticker.create({
+    const newSticker = new Sticker({
       title,
       description,
       price,
-      imageUrl: req.file.path || req.file.url, // use whichever is available
-      publicId: req.file.filename || req.file.public_id, // use whichever is available
-      uploadedBy: req.user?.id || null,
+      category,
+      imageUrl: req.file.path,  // Cloudinary or local upload
+      publicId: req.file.filename || "default", // Cloudinary publicId
+      uploadedBy: req.user?._id || null,
     });
 
-    res
-      .status(201)
-      .json({ success: true, message: "Sticker added", data: newSticker });
-  } catch (error) {
-    console.error("Add Sticker Error:", error.message);
-    res.status(500).json({ success: false, message: "Failed to add sticker" });
+    await newSticker.save();
+    res.status(201).json({ success: true, sticker: newSticker });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
+
 
 // controllers/stickerController.js
 export const updateSticker = async (req, res) => {
   try {
-    let { title, description, price } = req.body;
+    let { title, description, price, category } = req.body;
 
-    // Convert price to number if it's provided
     if (price) {
       price = Number(price);
     }
@@ -88,12 +92,17 @@ export const updateSticker = async (req, res) => {
       title,
       description,
       price,
+      category,
     });
 
-    // Update sticker
+    // Remove undefined fields so they don’t overwrite existing ones
+    const updateFields = Object.fromEntries(
+      Object.entries(validatedData).filter(([_, v]) => v !== undefined)
+    );
+
     const updatedSticker = await Sticker.findByIdAndUpdate(
       req.params.id,
-      validatedData,
+      updateFields,
       { new: true }
     );
 
@@ -103,11 +112,10 @@ export const updateSticker = async (req, res) => {
       data: updatedSticker,
     });
   } catch (error) {
-    res
-      .status(400)
-      .json({ success: false, message: error.errors || error.message });
+    res.status(400).json({ success: false, message: error.errors || error.message });
   }
 };
+
 
 // DELETE sticker (Admin Only)
 export const deleteSticker = async (req, res) => {
@@ -138,10 +146,11 @@ const fetchStickers = async () => {
   setError("");
   try {
     const res = await stickerService.getAllStickers();
-    setStickers(Array.isArray(res) ? res : res?.data || []); // ✅ access .data
+    setStickers(res.data?.data || []); // ✅ use .data.data
   } catch (err) {
-    setError(err.message);
+    setError(err.message || "Failed to load stickers");
   } finally {
     setLoading(false);
   }
 };
+
