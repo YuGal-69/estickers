@@ -50,6 +50,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Password-based login function
+  const loginWithPassword = async (email, password) => {
+    try {
+      const response = await authService.loginWithPassword(email, password);
+      if (response.success && response.token) {
+        setUser(response.user);
+        setIsAuthenticated(true);
+      }
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Google OAuth login function
+  const googleLogin = async (googleData) => {
+    try {
+      const response = await authService.googleLogin(googleData);
+      if (response.success && response.token) {
+        setUser(response.user);
+        setIsAuthenticated(true);
+      }
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   // Verify OTP function
   const verifyOtp = async (email, otp) => {
     try {
@@ -79,6 +107,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     signup,
     login,
+    loginWithPassword,
+    googleLogin,
     verifyOtp,
     logout,
   };

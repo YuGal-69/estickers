@@ -83,12 +83,24 @@ const OTP = () => {
         // Your backend's /api/auth/login sends a new OTP for verified users
         const r = await authService.login(email);
         if (!r?.success) throw new Error(r?.message || "Failed to resend OTP");
-        setSuccess(r.message || "OTP resent successfully! Check your email.");
+
+        // Check if OTP is in response (for development/testing)
+        if (r.otp) {
+          setSuccess(`OTP resent! Development OTP: ${r.otp}`);
+        } else {
+          setSuccess(r.message || "OTP resent successfully! Check your email.");
+        }
       } else if (fromSignup) {
-        // For sign-up flow, call a dedicated resend endpoint (step 3 below)
-        const r = await apiPost("/api/auth/resend-otp", { email });
+        // For sign-up flow, call a dedicated resend endpoint
+        const r = await authService.resendOtp(email);
         if (!r?.success) throw new Error(r?.message || "Failed to resend OTP");
-        setSuccess(r.message || "OTP resent successfully! Check your email.");
+
+        // Check if OTP is in response (for development/testing)
+        if (r.otp) {
+          setSuccess(`OTP resent! Development OTP: ${r.otp}`);
+        } else {
+          setSuccess(r.message || "OTP resent successfully! Check your email.");
+        }
       } else {
         setSuccess("OTP resent.");
       }
@@ -122,7 +134,9 @@ const OTP = () => {
             Verify OTP
           </h2>
           <p className="text-gray-600 text-sm sm:text-base mt-2">
-            {fromSignup ? "Complete your registration" : "Sign in to your account"}
+            {fromSignup
+              ? "Complete your registration"
+              : "Sign in to your account"}
           </p>
         </div>
 
@@ -156,7 +170,10 @@ const OTP = () => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
           <div>
-            <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="otp"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Enter 6-digit OTP
             </label>
             <input
@@ -204,7 +221,8 @@ const OTP = () => {
             <p className="text-gray-500 text-sm sm:text-base">
               Resend OTP in{" "}
               <span className="font-mono font-semibold text-pink-600">
-                {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+                {Math.floor(timeLeft / 60)}:
+                {(timeLeft % 60).toString().padStart(2, "0")}
               </span>
             </p>
           )}

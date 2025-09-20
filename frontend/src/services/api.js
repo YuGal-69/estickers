@@ -127,6 +127,7 @@ export const apiDelete = (url) => apiRequest(url, { method: "DELETE" });
 
 // ----------------- Services -----------------
 export const authService = {
+  // OTP-based authentication (original)
   signup: (userData) => apiPost("/api/auth/signup", userData),
   login: (email) => apiPost("/api/auth/login", { email }),
   verifyOtp: async (email, otp) => {
@@ -137,6 +138,32 @@ export const authService = {
     }
     return response;
   },
+  resendOtp: (email) => apiPost("/api/auth/resend-otp", { email }),
+
+  // Password-based authentication
+  loginWithPassword: async (email, password) => {
+    const response = await apiPost("/api/auth/login-password", {
+      email,
+      password,
+    });
+    if (response.success && response.token) {
+      setToken(response.token);
+      setUser(response.user);
+    }
+    return response;
+  },
+
+  // Google OAuth authentication
+  googleLogin: async (googleData) => {
+    const response = await apiPost("/api/auth/google-login", googleData);
+    if (response.success && response.token) {
+      setToken(response.token);
+      setUser(response.user);
+    }
+    return response;
+  },
+
+  // Utility functions
   logout: () => logout(),
   getCurrentUser: () => getCurrentUser(),
   isAuthenticated: () => isAuthenticated(),
@@ -144,12 +171,12 @@ export const authService = {
 
 export const stickerService = {
   getAllStickers: (category) => {
-  const url =
-    category && category !== "All"
-      ? `/api/stickers?category=${encodeURIComponent(category)}`
-      : "/api/stickers";
-  return apiGet(url);
-},
+    const url =
+      category && category !== "All"
+        ? `/api/stickers?category=${encodeURIComponent(category)}`
+        : "/api/stickers";
+    return apiGet(url);
+  },
 
   getStickerById: (stickerId) => apiGet(`/api/stickers/${stickerId}`),
   addSticker: (stickerData, imageFile) => {
@@ -219,7 +246,7 @@ export const orderService = {
         sticker: item.sticker,
         quantity: item.quantity,
       })),
-      total: orderData.totalPrice,        // ✅ backend expects "total"
+      total: orderData.totalPrice, // ✅ backend expects "total"
       address: {
         street: orderData.shippingAddress.street,
         city: orderData.shippingAddress.city,
@@ -234,12 +261,10 @@ export const orderService = {
   },
 
   getUserOrders: () => apiGet("/api/orders/me"), // ✅ matches backend
-  getAllOrders: () => apiGet("/api/orders"),     // ✅ admin only
+  getAllOrders: () => apiGet("/api/orders"), // ✅ admin only
   updateOrderStatus: (orderId, status) =>
     apiPut(`/api/orders/${orderId}/status`, { status }),
 };
-
-
 
 export default {
   auth: authService,

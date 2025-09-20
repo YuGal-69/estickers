@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
+    password: { type: String }, // Optional for Google OAuth users
     role: {
       type: String,
       enum: ["user", "admin"],
@@ -11,8 +12,12 @@ const userSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.googleId; // Phone required only for non-Google users
+      },
     },
+    googleId: { type: String, unique: true, sparse: true }, // Google OAuth ID
+    profilePicture: { type: String }, // Google profile picture
     otp: {
       code: {
         type: String,
@@ -21,7 +26,7 @@ const userSchema = new mongoose.Schema(
         type: Date,
       },
     },
-    isVerified: { type: Boolean, default: false }, // ⬅️ recommended default
+    isVerified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

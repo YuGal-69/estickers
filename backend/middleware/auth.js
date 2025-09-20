@@ -13,24 +13,18 @@ export const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    // 🔍 Check for Bearer token
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.warn("🚫 No token found in Authorization header");
+    if (!authHeader?.startsWith("Bearer ")) {
       return res.status(401).json({ success: false, message: "No token provided" });
     }
 
     const token = authHeader.split(" ")[1];
     if (!token) {
-      console.warn("🚫 Invalid Bearer format");
       return res.status(401).json({ success: false, message: "Invalid token format" });
     }
 
-    // 🔍 Verify token
+    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    console.log("✅ Token decoded successfully:", decoded);
-
-    // Attach user details to request
     req.user = {
       id: decoded.id,
       role: decoded.role,
@@ -38,10 +32,13 @@ export const authMiddleware = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("❌ Auth error:", error.message);
-    return res.status(401).json({ success: false, message: "Unauthorized: Invalid or expired token" });
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ success: false, message: "Token expired. Please login again." });
+    }
+    return res.status(401).json({ success: false, message: "Unauthorized: Invalid token" });
   }
 };
+
 
 /**
  * ✅ Admin Middleware
